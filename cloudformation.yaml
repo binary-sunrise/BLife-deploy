@@ -397,6 +397,7 @@ Resources:
   # ============================================================================
   CloudFrontDistribution:
     Type: AWS::CloudFront::Distribution
+    DependsOn: BackendEnvironment
     Properties:
       DistributionConfig:
         Enabled: true
@@ -413,7 +414,7 @@ Resources:
             S3OriginConfig:
               OriginAccessIdentity: ""
           - Id: Backend-API-Origin
-            DomainName: !GetAtt BackendEnvironment.EndpointURL
+            DomainName: !Sub "${ProjectName}-api-${EnvironmentName}-${AWS::AccountId}.${AWS::Region}.elasticbeanstalk.com"
             CustomOriginConfig:
               HTTPPort: 80
               HTTPSPort: 443
@@ -560,7 +561,7 @@ Outputs:
 
   BackendEndpointURL:
     Description: "Elastic Beanstalk Backend Direct URL"
-    Value: !Sub "http://${BackendEnvironment.EndpointURL}"
+    Value: !Sub "http://${ProjectName}-api-${EnvironmentName}-${AWS::AccountId}.${AWS::Region}.elasticbeanstalk.com"
 
   DatabaseEndpoint:
     Description: "RDS PostgreSQL Host Endpoint"
