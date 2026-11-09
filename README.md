@@ -236,3 +236,4 @@ To tear down all resources and terminate the stack:
 ```
 > [!CAUTION]
 > Stack deletion will remove the RDS database and Elastic Beanstalk environment. S3 buckets containing files may require emptying before CloudFormation can delete them.
+

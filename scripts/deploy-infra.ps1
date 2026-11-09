@@ -96,3 +96,4 @@ aws cloudformation describe-stacks `
     --query "Stacks[0].Outputs[*].[OutputKey, OutputValue]" `
     --output table
 Write-Host "==========================================================" -ForegroundColor Cyan
+

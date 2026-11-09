@@ -23,3 +23,4 @@ echo "Waiting for stack deletion to complete..."
 aws cloudformation wait stack-delete-complete --stack-name "${STACK_NAME}" --region "${REGION}"
 
 echo "✓ Stack '${STACK_NAME}' deleted successfully."
+

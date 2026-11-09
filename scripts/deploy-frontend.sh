@@ -49,3 +49,4 @@ aws cloudfront create-invalidation \
   --paths "/*" > /dev/null
 
 echo "✓ Frontend deployment complete!"
+

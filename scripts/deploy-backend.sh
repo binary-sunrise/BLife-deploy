@@ -64,3 +64,4 @@ aws elasticbeanstalk wait environment-updated \
   --region "${REGION}"
 
 echo "✓ Backend deployment complete!"
+

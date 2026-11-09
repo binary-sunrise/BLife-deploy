@@ -28,3 +28,4 @@ Write-Host "Waiting for stack deletion to complete..." -ForegroundColor Yellow
 aws cloudformation wait stack-delete-complete --stack-name $StackName --region $Region
 
 Write-Host "[OK] Stack '$StackName' deleted successfully." -ForegroundColor Green
+
