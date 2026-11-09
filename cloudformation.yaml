@@ -455,7 +455,7 @@ Resources:
               - HEAD
               - OPTIONS
             CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad          # Managed-CachingDisabled
-            OriginRequestPolicyId: b680b347-497d-4119-b825-78fc290c9c48  # Managed-AllViewerExceptHostHeader
+            OriginRequestPolicyId: b689b0a8-53d0-40ab-baf2-68738e2966ac  # Managed-AllViewerExceptHostHeader
             Compress: true
           - PathPattern: "/health"
             TargetOriginId: Backend-API-Origin
@@ -467,7 +467,7 @@ Resources:
               - GET
               - HEAD
             CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad
-            OriginRequestPolicyId: b680b347-497d-4119-b825-78fc290c9c48
+            OriginRequestPolicyId: b689b0a8-53d0-40ab-baf2-68738e2966ac
             Compress: true
           - PathPattern: "/docs*"
             TargetOriginId: Backend-API-Origin
@@ -479,7 +479,7 @@ Resources:
               - GET
               - HEAD
             CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad
-            OriginRequestPolicyId: b680b347-497d-4119-b825-78fc290c9c48
+            OriginRequestPolicyId: b689b0a8-53d0-40ab-baf2-68738e2966ac
             Compress: true
           - PathPattern: "/redoc*"
             TargetOriginId: Backend-API-Origin
@@ -491,7 +491,7 @@ Resources:
               - GET
               - HEAD
             CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad
-            OriginRequestPolicyId: b680b347-497d-4119-b825-78fc290c9c48
+            OriginRequestPolicyId: b689b0a8-53d0-40ab-baf2-68738e2966ac
             Compress: true
           - PathPattern: "/openapi.json"
             TargetOriginId: Backend-API-Origin
@@ -503,7 +503,7 @@ Resources:
               - GET
               - HEAD
             CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad
-            OriginRequestPolicyId: b680b347-497d-4119-b825-78fc290c9c48
+            OriginRequestPolicyId: b689b0a8-53d0-40ab-baf2-68738e2966ac
             Compress: true
 
         CustomErrorResponses:
