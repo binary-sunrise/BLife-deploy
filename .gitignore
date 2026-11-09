@@ -1,0 +1,24 @@
+# Parameters with real credentials
+parameters/*.json
+!parameters/*.example
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Temporary deployment archives
+*.zip
+*.tar.gz
+dist/
+
+# OS specific files
+.DS_Store
+Thumbs.db
+ehthumbs.db
+
+# Editor / IDE files
+.idea/
+.vscode/
+*.swp
+*~

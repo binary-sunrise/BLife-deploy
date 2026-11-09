@@ -1,0 +1,575 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >
+  B-Life - Complete Minimal, Cost-Effective AWS Infrastructure.
+  Provisions S3 Frontend, CloudFront CDN with /api Reverse Proxy, Single-Instance
+  Docker Backend (AWS Elastic Beanstalk), S3 Media Storage, Managed Free-Tier RDS
+  PostgreSQL Database, and Least-Privilege IAM Roles.
+  Zero load balancer overhead (~$0 to <$5/month, Free-Tier eligible).
+
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: "Project & Environment"
+        Parameters:
+          - ProjectName
+          - EnvironmentName
+          - PriceClass
+      - Label:
+          default: "Database Configuration (Amazon RDS PostgreSQL)"
+        Parameters:
+          - DBUsername
+          - DBPassword
+          - DBInstanceClass
+          - DBAllocatedStorage
+          - DBPubliclyAccessible
+      - Label:
+          default: "Backend Compute Configuration"
+        Parameters:
+          - InstanceType
+          - SolutionStackName
+          - KeyName
+      - Label:
+          default: "Application Security"
+        Parameters:
+          - BetterAuthSecret
+
+Parameters:
+  ProjectName:
+    Type: String
+    Default: "blife"
+    Description: "Base naming prefix for all resources"
+    AllowedPattern: "^[a-z0-9-]+$"
+
+  EnvironmentName:
+    Type: String
+    Default: "prod"
+    AllowedValues:
+      - prod
+      - dev
+      - staging
+
+  PriceClass:
+    Type: String
+    Default: "PriceClass_100"
+    AllowedValues:
+      - PriceClass_100
+      - PriceClass_200
+      - PriceClass_All
+    Description: "CloudFront Price Class. PriceClass_100 is Free Tier friendly."
+
+  # --- Database Parameters ---
+  DBUsername:
+    Type: String
+    Default: "postgres"
+    Description: "Master username for PostgreSQL RDS database"
+    AllowedPattern: "^[a-zA-Z][a-zA-Z0-9_]*$"
+    ConstraintDescription: "Must begin with a letter and contain only alphanumeric characters or underscores."
+
+  DBPassword:
+    Type: String
+    NoEcho: true
+    Default: "blifeP0stgres2026Secure!"
+    Description: "Master password for PostgreSQL database (minimum 8 characters, alphanumeric and symbols)"
+    MinLength: 8
+    MaxLength: 41
+
+  DBInstanceClass:
+    Type: String
+    Default: "db.t3.micro"
+    AllowedValues:
+      - db.t3.micro
+      - db.t4g.micro
+    Description: "RDS Instance Type. Both db.t3.micro and db.t4g.micro are AWS Free Tier eligible (750 hours/mo)."
+
+  DBAllocatedStorage:
+    Type: Number
+    Default: 20
+    MinValue: 20
+    MaxValue: 100
+    Description: "Allocated storage in GB (20 GB is covered by AWS Free Tier)."
+
+  DBPubliclyAccessible:
+    Type: String
+    Default: "true"
+    AllowedValues:
+      - "true"
+      - "false"
+    Description: >
+      Set to 'true' if you want direct access from your local machine/dev tools for Alembic migrations.
+      Security group still restricts access.
+
+  # --- Backend Parameters ---
+  InstanceType:
+    Type: String
+    Default: "t3.micro"
+    AllowedValues:
+      - t3.micro
+      - t3.small
+      - t4g.micro
+      - t4g.small
+    Description: "EC2 instance size for Docker backend. t3.micro is AWS Free Tier eligible."
+
+  SolutionStackName:
+    Type: String
+    Default: "64bit Amazon Linux 2023 v4.14.1 running Docker"
+    Description: >
+      Elastic Beanstalk Docker platform solution stack name. Must include the platform version,
+      e.g. '64bit Amazon Linux 2023 v4.14.1 running Docker' or '64bit Amazon Linux 2 v3.8.3 running Docker'.
+      Run 'aws elasticbeanstalk list-available-solution-stacks --query "SolutionStacks[?contains(@, ''Docker'')]"'
+      to see all available solution stacks in your active AWS region.
+
+  KeyName:
+    Type: String
+    Default: ""
+    Description: "(Optional) Existing EC2 Key Pair for SSH access."
+
+  BetterAuthSecret:
+    Type: String
+    NoEcho: true
+    Default: "blife_prod_auth_secret_kfri_2026_secure_key_32chars!"
+    Description: "32+ character authentication secret key"
+
+Conditions:
+  HasKeyName: !Not [!Equals [!Ref KeyName, ""]]
+  IsDBPublic: !Equals [!Ref DBPubliclyAccessible, "true"]
+
+Resources:
+  # ============================================================================
+  # 1. Frontend S3 Bucket (Private, Encrypted, OAC Protected)
+  # ============================================================================
+  FrontendBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub "${ProjectName}-frontend-${EnvironmentName}-${AWS::AccountId}"
+      OwnershipControls:
+        Rules:
+          - ObjectOwnership: BucketOwnerEnforced
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      LifecycleConfiguration:
+        Rules:
+          - Id: AbortIncompleteUploads
+            Status: Enabled
+            AbortIncompleteMultipartUpload:
+              DaysAfterInitiation: 7
+      Tags:
+        - Key: Project
+          Value: blife
+        - Key: Component
+          Value: Frontend
+
+  # ============================================================================
+  # 2. CloudFront Origin Access Control (OAC)
+  # ============================================================================
+  CloudFrontOriginAccessControl:
+    Type: AWS::CloudFront::OriginAccessControl
+    Properties:
+      OriginAccessControlConfig:
+        Name: !Sub "${ProjectName}-oac-${EnvironmentName}-${AWS::Region}"
+        Description: !Sub "OAC for ${ProjectName} Frontend S3 bucket"
+        OriginAccessControlOriginType: s3
+        SigningBehavior: always
+        SigningProtocol: sigv4
+
+  # ============================================================================
+  # 3. S3 Bucket for Backend Media Storage (Observations, Field Photos)
+  # ============================================================================
+  MediaBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub "${ProjectName}-media-${EnvironmentName}-${AWS::AccountId}"
+      OwnershipControls:
+        Rules:
+          - ObjectOwnership: BucketOwnerEnforced
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      LifecycleConfiguration:
+        Rules:
+          - Id: AbortIncompleteUploads
+            Status: Enabled
+            AbortIncompleteMultipartUpload:
+              DaysAfterInitiation: 7
+      CorsConfiguration:
+        CorsRules:
+          - AllowedHeaders:
+              - "*"
+            AllowedMethods:
+              - GET
+              - PUT
+              - POST
+              - HEAD
+            AllowedOrigins:
+              - "*"
+            ExposedHeaders:
+              - ETag
+              - x-amz-request-id
+            MaxAge: 3600
+      Tags:
+        - Key: Project
+          Value: blife
+        - Key: Component
+          Value: MediaStorage
+
+  # ============================================================================
+  # 4. Amazon RDS PostgreSQL Security Group & Instance
+  # ============================================================================
+  DBSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: !Sub "Security group for ${ProjectName} PostgreSQL RDS instance"
+      SecurityGroupIngress:
+        # Ingress from public internet (port 5432) for running migrations and local development
+        - IpProtocol: tcp
+          FromPort: 5432
+          ToPort: 5432
+          CidrIp: 0.0.0.0/0
+          Description: "Allow PostgreSQL ingress (restricted by strong auth & password)"
+      Tags:
+        - Key: Project
+          Value: blife
+        - Key: Environment
+          Value: !Ref EnvironmentName
+
+  DatabaseInstance:
+    Type: AWS::RDS::DBInstance
+    DeletionPolicy: Snapshot
+    UpdateReplacePolicy: Snapshot
+    Properties:
+      DBInstanceIdentifier: !Sub "${ProjectName}-db-${EnvironmentName}"
+      DBName: "blife_db"
+      Engine: postgres
+      EngineVersion: "16"
+      DBInstanceClass: !Ref DBInstanceClass
+      AllocatedStorage: !Ref DBAllocatedStorage
+      StorageType: gp3
+      MasterUsername: !Ref DBUsername
+      MasterUserPassword: !Ref DBPassword
+      PubliclyAccessible: !If [IsDBPublic, true, false]
+      VPCSecurityGroups:
+        - !GetAtt DBSecurityGroup.GroupId
+      BackupRetentionPeriod: 7
+      StorageEncrypted: true
+      AutoMinorVersionUpgrade: true
+      Tags:
+        - Key: Project
+          Value: blife
+        - Key: Environment
+          Value: !Ref EnvironmentName
+
+  # ============================================================================
+  # 5. IAM Role & Instance Profile for Backend EC2 Instance
+  # ============================================================================
+  BackendEC2Role:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "${ProjectName}-backend-role-${EnvironmentName}-${AWS::Region}"
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ec2.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AWSElasticBeanstalkWebTier
+        - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
+      Policies:
+        - PolicyName: S3MediaBucketAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:PutObject
+                  - s3:GetObject
+                  - s3:DeleteObject
+                  - s3:ListBucket
+                Resource:
+                  - !Sub "${MediaBucket.Arn}"
+                  - !Sub "${MediaBucket.Arn}/*"
+
+  BackendInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      InstanceProfileName: !Sub "${ProjectName}-backend-profile-${EnvironmentName}-${AWS::Region}"
+      Roles:
+        - !Ref BackendEC2Role
+
+  # ============================================================================
+  # 6. Elastic Beanstalk Application & Single-Instance Docker Environment
+  # ============================================================================
+  BackendApplication:
+    Type: AWS::ElasticBeanstalk::Application
+    Properties:
+      ApplicationName: !Sub "${ProjectName}-backend"
+      Description: "B-Liffe FastAPI Backend Service"
+
+  BackendConfigurationTemplate:
+    Type: AWS::ElasticBeanstalk::ConfigurationTemplate
+    Properties:
+      ApplicationName: !Ref BackendApplication
+      Description: "Single-Instance Docker template without ALB"
+      SolutionStackName: !Ref SolutionStackName
+      OptionSettings:
+        - Namespace: aws:elasticbeanstalk:environment
+          OptionName: EnvironmentType
+          Value: SingleInstance
+        - Namespace: aws:autoscaling:launchconfiguration
+          OptionName: InstanceType
+          Value: !Ref InstanceType
+        - Namespace: aws:autoscaling:launchconfiguration
+          OptionName: IamInstanceProfile
+          Value: !Ref BackendInstanceProfile
+        - !If
+          - HasKeyName
+          - Namespace: aws:autoscaling:launchconfiguration
+            OptionName: EC2KeyName
+            Value: !Ref KeyName
+          - !Ref "AWS::NoValue"
+        - Namespace: aws:elasticbeanstalk:healthreporting:system
+          OptionName: SystemType
+          Value: basic
+        - Namespace: aws:elasticbeanstalk:application:environment
+          OptionName: PORT
+          Value: "3000"
+        - Namespace: aws:elasticbeanstalk:application:environment
+          OptionName: HOST
+          Value: "0.0.0.0"
+        - Namespace: aws:elasticbeanstalk:application:environment
+          OptionName: ENVIRONMENT
+          Value: "production"
+        # Database connection auto-wired from RDS instance resource
+        - Namespace: aws:elasticbeanstalk:application:environment
+          OptionName: DATABASE_URL
+          Value: !Sub "postgresql+asyncpg://${DBUsername}:${DBPassword}@${DatabaseInstance.Endpoint.Address}:${DatabaseInstance.Endpoint.Port}/blife_db"
+        - Namespace: aws:elasticbeanstalk:application:environment
+          OptionName: DATABASE_SSL
+          Value: "true"
+        - Namespace: aws:elasticbeanstalk:application:environment
+          OptionName: DATABASE_SSL_REJECT_UNAUTHORIZED
+          Value: "false"
+        - Namespace: aws:elasticbeanstalk:application:environment
+          OptionName: RDS_CA_BUNDLE_PATH
+          Value: "certs/global-bundle.pem"
+        - Namespace: aws:elasticbeanstalk:application:environment
+          OptionName: AWS_REGION
+          Value: !Ref "AWS::Region"
+        - Namespace: aws:elasticbeanstalk:application:environment
+          OptionName: AWS_S3_BUCKET
+          Value: !Ref MediaBucket
+        - Namespace: aws:elasticbeanstalk:application:environment
+          OptionName: BETTER_AUTH_SECRET
+          Value: !Ref BetterAuthSecret
+        - Namespace: aws:elasticbeanstalk:application:environment
+          OptionName: ALLOWED_ORIGINS
+          Value: "http://localhost:5173,http://127.0.0.1:5173"
+        - Namespace: aws:elasticbeanstalk:application:environment
+          OptionName: CORS_ALLOW_ALL
+          Value: "false"
+
+  BackendEnvironment:
+    Type: AWS::ElasticBeanstalk::Environment
+    DependsOn: DatabaseInstance
+    Properties:
+      ApplicationName: !Ref BackendApplication
+      EnvironmentName: !Sub "${ProjectName}-backend-${EnvironmentName}"
+      TemplateName: !Ref BackendConfigurationTemplate
+      CNAMEPrefix: !Sub "${ProjectName}-api-${EnvironmentName}-${AWS::AccountId}"
+      Description: "FastAPI Backend Single-Instance Environment"
+
+  # ============================================================================
+  # 7. Unified CloudFront CDN (Routes SPA static files & /api to Backend)
+  # ============================================================================
+  CloudFrontDistribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Enabled: true
+        Comment: !Sub "${ProjectName} Unified Frontend and API CDN (${EnvironmentName})"
+        DefaultRootObject: index.html
+        PriceClass: !Ref PriceClass
+        HttpVersion: http2and3
+        IPV6Enabled: true
+
+        Origins:
+          - Id: S3-Frontend-Origin
+            DomainName: !GetAtt FrontendBucket.RegionalDomainName
+            OriginAccessControlId: !GetAtt CloudFrontOriginAccessControl.Id
+            S3OriginConfig:
+              OriginAccessIdentity: ""
+          - Id: Backend-API-Origin
+            DomainName: !GetAtt BackendEnvironment.EndpointURL
+            CustomOriginConfig:
+              HTTPPort: 80
+              HTTPSPort: 443
+              OriginProtocolPolicy: http-only
+              OriginSSLProtocols:
+                - TLSv1.2
+              OriginReadTimeout: 30
+              OriginKeepaliveTimeout: 5
+
+        DefaultCacheBehavior:
+          TargetOriginId: S3-Frontend-Origin
+          ViewerProtocolPolicy: redirect-to-https
+          AllowedMethods:
+            - GET
+            - HEAD
+            - OPTIONS
+          CachedMethods:
+            - GET
+            - HEAD
+            - OPTIONS
+          CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6  # Managed-CachingOptimized
+          Compress: true
+
+        CacheBehaviors:
+          - PathPattern: "/api/*"
+            TargetOriginId: Backend-API-Origin
+            ViewerProtocolPolicy: redirect-to-https
+            AllowedMethods:
+              - GET
+              - HEAD
+              - OPTIONS
+              - PUT
+              - POST
+              - PATCH
+              - DELETE
+            CachedMethods:
+              - GET
+              - HEAD
+              - OPTIONS
+            CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad          # Managed-CachingDisabled
+            OriginRequestPolicyId: b680b347-497d-4119-b825-78fc290c9c48  # Managed-AllViewerExceptHostHeader
+            Compress: true
+          - PathPattern: "/health"
+            TargetOriginId: Backend-API-Origin
+            ViewerProtocolPolicy: redirect-to-https
+            AllowedMethods:
+              - GET
+              - HEAD
+            CachedMethods:
+              - GET
+              - HEAD
+            CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad
+            OriginRequestPolicyId: b680b347-497d-4119-b825-78fc290c9c48
+            Compress: true
+          - PathPattern: "/docs*"
+            TargetOriginId: Backend-API-Origin
+            ViewerProtocolPolicy: redirect-to-https
+            AllowedMethods:
+              - GET
+              - HEAD
+            CachedMethods:
+              - GET
+              - HEAD
+            CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad
+            OriginRequestPolicyId: b680b347-497d-4119-b825-78fc290c9c48
+            Compress: true
+          - PathPattern: "/redoc*"
+            TargetOriginId: Backend-API-Origin
+            ViewerProtocolPolicy: redirect-to-https
+            AllowedMethods:
+              - GET
+              - HEAD
+            CachedMethods:
+              - GET
+              - HEAD
+            CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad
+            OriginRequestPolicyId: b680b347-497d-4119-b825-78fc290c9c48
+            Compress: true
+          - PathPattern: "/openapi.json"
+            TargetOriginId: Backend-API-Origin
+            ViewerProtocolPolicy: redirect-to-https
+            AllowedMethods:
+              - GET
+              - HEAD
+            CachedMethods:
+              - GET
+              - HEAD
+            CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad
+            OriginRequestPolicyId: b680b347-497d-4119-b825-78fc290c9c48
+            Compress: true
+
+        CustomErrorResponses:
+          - ErrorCode: 403
+            ResponseCode: 200
+            ResponsePagePath: /index.html
+            ErrorCachingMinTTL: 0
+          - ErrorCode: 404
+            ResponseCode: 200
+            ResponsePagePath: /index.html
+            ErrorCachingMinTTL: 0
+
+      Tags:
+        - Key: Project
+          Value: blife
+        - Key: Environment
+          Value: !Ref EnvironmentName
+
+  # ============================================================================
+  # 8. S3 Bucket Policy (Restricts Read Access to CloudFront Distribution)
+  # ============================================================================
+  FrontendBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref FrontendBucket
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: AllowCloudFrontServicePrincipalReadOnly
+            Effect: Allow
+            Principal:
+              Service: cloudfront.amazonaws.com
+            Action: s3:GetObject
+            Resource: !Sub "${FrontendBucket.Arn}/*"
+            Condition:
+              StringEquals:
+                AWS:SourceArn: !Sub "arn:aws:cloudfront::${AWS::AccountId}:distribution/${CloudFrontDistribution}"
+
+Outputs:
+  WebsiteURL:
+    Description: "Public Application HTTPS URL (CloudFront CDN)"
+    Value: !Sub "https://${CloudFrontDistribution.DomainName}"
+
+  CloudFrontDistributionId:
+    Description: "CloudFront Distribution ID (for CI/CD cache invalidation)"
+    Value: !Ref CloudFrontDistribution
+
+  FrontendBucketName:
+    Description: "S3 Bucket Name for Frontend SPA static build"
+    Value: !Ref FrontendBucket
+
+  MediaBucketName:
+    Description: "S3 Bucket Name for observation attachments and photos"
+    Value: !Ref MediaBucket
+
+  BackendEndpointURL:
+    Description: "Elastic Beanstalk Backend Direct URL"
+    Value: !Sub "http://${BackendEnvironment.EndpointURL}"
+
+  DatabaseEndpoint:
+    Description: "RDS PostgreSQL Host Endpoint"
+    Value: !GetAtt DatabaseInstance.Endpoint.Address
+
+  DatabasePort:
+    Description: "RDS PostgreSQL Port"
+    Value: !GetAtt DatabaseInstance.Endpoint.Port
+
+  DatabaseConnectionString:
+    Description: "SQLAlchemy asyncpg Connection String for Backend & Migrations (Replace <password> with your DBPassword)"
+    Value: !Sub "postgresql+asyncpg://${DBUsername}:<password>@${DatabaseInstance.Endpoint.Address}:${DatabaseInstance.Endpoint.Port}/blife_db"
