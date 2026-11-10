@@ -4,7 +4,7 @@
 #>
 param(
     [string]$StackName = "blife-stack",
-    [string]$Region = "ap-southeast-2"
+    [string]$Region = "ap-south-1"
 )
 
 $ErrorActionPreference = "Stop"

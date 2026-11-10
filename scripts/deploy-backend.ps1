@@ -4,7 +4,7 @@
 #>
 param(
     [string]$BackendDir = "..\BLife-Backend",
-    [string]$Region = "ap-southeast-2",
+    [string]$Region = "ap-south-1",
     [string]$AppName = "blife-backend",
     [string]$EnvName = "blife-backend-prod"
 )

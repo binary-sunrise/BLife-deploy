@@ -2,7 +2,7 @@
 set -euo pipefail
 
 BACKEND_DIR="${BACKEND_DIR:-../BLife-Backend}"
-REGION="${AWS_REGION:-ap-southeast-2}"
+REGION="${AWS_REGION:-ap-south-1}"
 APP_NAME="${APP_NAME:-blife-backend}"
 ENV_NAME="${ENV_NAME:-blife-backend-prod}"
 

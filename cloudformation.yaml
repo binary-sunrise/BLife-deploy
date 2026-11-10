@@ -542,6 +542,36 @@ Resources:
               StringEquals:
                 AWS:SourceArn: !Sub "arn:aws:cloudfront::${AWS::AccountId}:distribution/${CloudFrontDistribution}"
 
+  # ============================================================================
+  # 9. GitHub Actions Deployer IAM Role (Administrator Access)
+  # ============================================================================
+  GitHubActionsDeployerRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: "github-actions-deployer"
+      Description: "IAM role with AdministratorAccess for GitHub Actions CI/CD workflows and deployment automation"
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              AWS: !Sub "arn:aws:iam::${AWS::AccountId}:root"
+            Action: sts:AssumeRole
+          - Effect: Allow
+            Principal:
+              Federated: !Sub "arn:aws:iam::${AWS::AccountId}:oidc-provider/token.actions.githubusercontent.com"
+            Action: sts:AssumeRoleWithWebIdentity
+            Condition:
+              StringEquals:
+                token.actions.githubusercontent.com:aud: "sts.amazonaws.com"
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AdministratorAccess
+      Tags:
+        - Key: Project
+          Value: blife
+        - Key: Component
+          Value: CICD
+
 Outputs:
   WebsiteURL:
     Description: "Public Application HTTPS URL (CloudFront CDN)"
@@ -574,3 +604,7 @@ Outputs:
   DatabaseConnectionString:
     Description: "SQLAlchemy asyncpg Connection String for Backend & Migrations (Replace <password> with your DBPassword)"
     Value: !Sub "postgresql+asyncpg://${DBUsername}:<password>@${DatabaseInstance.Endpoint.Address}:${DatabaseInstance.Endpoint.Port}/blife_db"
+
+  GitHubActionsDeployerRoleArn:
+    Description: "IAM Role ARN for github-actions-deployer with AdministratorAccess"
+    Value: !GetAtt GitHubActionsDeployerRole.Arn

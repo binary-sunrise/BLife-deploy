@@ -2,7 +2,7 @@
 set -euo pipefail
 
 STACK_NAME="${STACK_NAME:-blife-prod}"
-REGION="${AWS_REGION:-ap-southeast-2}"
+REGION="${AWS_REGION:-ap-south-1}"
 
 echo "=========================================================="
 echo " CAUTION: TEARDOWN INFRASTRUCTURE"

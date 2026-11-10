@@ -3,7 +3,7 @@ set -euo pipefail
 
 FRONTEND_DIR="${FRONTEND_DIR:-../BLife-frontend}"
 STACK_NAME="${STACK_NAME:-blife-prod}"
-REGION="${AWS_REGION:-ap-southeast-2}"
+REGION="${AWS_REGION:-ap-south-1}"
 
 echo "=========================================================="
 echo " Building & Deploying Frontend Application"

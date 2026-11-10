@@ -3,7 +3,7 @@ set -euo pipefail
 
 # Configuration
 STACK_NAME="${STACK_NAME:-blife-prod}"
-REGION="${AWS_REGION:-ap-southeast-2}"
+REGION="${AWS_REGION:-ap-south-1}"
 PARAM_FILE="${PARAM_FILE:-parameters/parameters.prod.json}"
 TEMPLATE_FILE="cloudformation.yaml"
 

@@ -96,7 +96,7 @@ The template provisions all required AWS resources in an atomic stack:
 
 ### 1. Prerequisites
 - [AWS CLI v2](https://aws.amazon.com/cli/) installed and authenticated (`aws configure`).
-- Target region configured (recommended: `ap-southeast-2` Sydney).
+- Target region configured (recommended: `ap-south-1` Sydney).
 - Appropriate IAM permissions to provision S3, CloudFront, RDS, Beanstalk, and IAM roles (`CAPABILITY_NAMED_IAM`).
 
 ### 2. Configure Parameters
@@ -129,19 +129,19 @@ aws cloudformation create-stack \
   --template-body file://cloudformation.yaml \
   --parameters file://parameters/parameters.prod.json \
   --capabilities CAPABILITY_NAMED_IAM \
-  --region ap-southeast-2
+  --region ap-south-1
 ```
 
 Wait for completion:
 ```bash
-aws cloudformation wait stack-create-complete --stack-name blife-prod --region ap-southeast-2
+aws cloudformation wait stack-create-complete --stack-name blife-prod --region ap-south-1
 ```
 
 Retrieve stack outputs:
 ```bash
 aws cloudformation describe-stacks \
   --stack-name blife-prod \
-  --region ap-southeast-2 \
+  --region ap-south-1 \
   --query "Stacks[0].Outputs[*].[OutputKey, OutputValue]" \
   --output table
 ```
@@ -167,17 +167,17 @@ zip -r deploy.zip . \
   -x "*.git*" -x ".venv/*" -x "__pycache__/*" -x "*/__pycache__/*" -x "tests/*"
 
 # Upload and deploy
-S3_BUCKET=$(aws elasticbeanstalk create-storage-location --output text --query "S3Bucket" --region ap-southeast-2)
+S3_BUCKET=$(aws elasticbeanstalk create-storage-location --output text --query "S3Bucket" --region ap-south-1)
 aws s3 cp deploy.zip "s3://${S3_BUCKET}/blife-backend/deploy-$(date +%s).zip"
 aws elasticbeanstalk create-application-version \
   --application-name blife-backend \
   --version-label "v-$(date +%s)" \
   --source-bundle S3Bucket="${S3_BUCKET}",S3Key="blife-backend/deploy-$(date +%s).zip" \
-  --region ap-southeast-2
+  --region ap-south-1
 aws elasticbeanstalk update-environment \
   --environment-name blife-backend-prod \
   --version-label "v-$(date +%s)" \
-  --region ap-southeast-2
+  --region ap-south-1
 ```
 
 ### 2. Deploying the Frontend
@@ -195,11 +195,11 @@ npm ci
 npm run build
 
 # Retrieve bucket & distribution from stack outputs
-BUCKET_NAME=$(aws cloudformation describe-stacks --stack-name blife-prod --query "Stacks[0].Outputs[?OutputKey=='FrontendBucketName'].OutputValue" --output text --region ap-southeast-2)
-CF_ID=$(aws cloudformation describe-stacks --stack-name blife-prod --query "Stacks[0].Outputs[?OutputKey=='CloudFrontDistributionId'].OutputValue" --output text --region ap-southeast-2)
+BUCKET_NAME=$(aws cloudformation describe-stacks --stack-name blife-prod --query "Stacks[0].Outputs[?OutputKey=='FrontendBucketName'].OutputValue" --output text --region ap-south-1)
+CF_ID=$(aws cloudformation describe-stacks --stack-name blife-prod --query "Stacks[0].Outputs[?OutputKey=='CloudFrontDistributionId'].OutputValue" --output text --region ap-south-1)
 
 # Sync build files
-aws s3 sync dist/ "s3://${BUCKET_NAME}" --delete --region ap-southeast-2
+aws s3 sync dist/ "s3://${BUCKET_NAME}" --delete --region ap-south-1
 
 # Invalidate cache
 aws cloudfront create-invalidation --distribution-id "${CF_ID}" --paths "/*"
@@ -217,7 +217,7 @@ cd ../BLife-Backend
 # Retrieve DB connection string from stack output
 DB_URL=$(aws cloudformation describe-stacks \
   --stack-name blife-prod \
-  --region ap-southeast-2 \
+  --region ap-south-1 \
   --query "Stacks[0].Outputs[?OutputKey=='DatabaseConnectionString'].OutputValue" \
   --output text)
 

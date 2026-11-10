@@ -4,13 +4,13 @@
 .PARAMETER StackName
     The name of the CloudFormation stack (default: 'blife-prod').
 .PARAMETER Region
-    The AWS region to deploy to (default: 'ap-southeast-2').
+    The AWS region to deploy to (default: 'ap-south-1').
 .PARAMETER ParamFile
     Path to the parameters JSON file (default: 'parameters/parameters.prod.json').
 #>
 param(
     [string]$StackName = "blife-stack",
-    [string]$Region = "ap-southeast-2",
+    [string]$Region = "ap-south-1",
     [string]$ParamFile = "parameters/parameters.prod.json"
 )
 
