@@ -581,6 +581,19 @@ Resources:
             Condition:
               StringEquals:
                 AWS:SourceArn: !Sub "arn:aws:cloudfront::${AWS::AccountId}:distribution/${CloudFrontDistribution}"
+          - Sid: AllowAccountDeployerFullAccess
+            Effect: Allow
+            Principal:
+              AWS: !Sub "arn:aws:iam::${AWS::AccountId}:root"
+            Action:
+              - s3:ListBucket
+              - s3:GetBucketLocation
+              - s3:GetObject
+              - s3:PutObject
+              - s3:DeleteObject
+            Resource:
+              - !GetAtt FrontendBucket.Arn
+              - !Sub "${FrontendBucket.Arn}/*"
 
   # ============================================================================
   # 9. GitHub Actions OIDC Identity Provider (for Keyless CI/CD Role)

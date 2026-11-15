@@ -4,7 +4,7 @@
 #>
 param(
     [string]$FrontendDir = "..\BLife-frontend",
-    [string]$StackName = "blife-stack",
+    [string]$StackName = "blife-prod",
     [string]$Region = "ap-south-1"
 )
 

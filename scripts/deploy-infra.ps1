@@ -9,7 +9,7 @@
     Path to the parameters JSON file (default: 'parameters/parameters.prod.json').
 #>
 param(
-    [string]$StackName = "blife-stack",
+    [string]$StackName = "blife-prod",
     [string]$Region = "ap-south-1",
     [string]$ParamFile = "parameters/parameters.prod.json"
 )

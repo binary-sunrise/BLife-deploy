@@ -3,7 +3,7 @@
     Tears down the B-Life AWS CloudFormation infrastructure stack.
 #>
 param(
-    [string]$StackName = "blife-stack",
+    [string]$StackName = "blife-prod",
     [string]$Region = "ap-south-1"
 )
 
