@@ -119,10 +119,10 @@ Parameters:
 
   SolutionStackName:
     Type: String
-    Default: "64bit Amazon Linux 2023 v4.14.1 running Docker"
+    Default: "64bit Amazon Linux 2023 v4.14.3 running Docker"
     Description: >
       Elastic Beanstalk Docker platform solution stack name. Must include the platform version,
-      e.g. '64bit Amazon Linux 2023 v4.14.1 running Docker' or '64bit Amazon Linux 2 v3.8.3 running Docker'.
+      e.g. '64bit Amazon Linux 2023 v4.14.3 running Docker' or '64bit Amazon Linux 2 v3.8.3 running Docker'.
       Run 'aws elasticbeanstalk list-available-solution-stacks --query "SolutionStacks[?contains(@, ''Docker'')]"'
       to see all available solution stacks in your active AWS region.
 

@@ -111,7 +111,7 @@ cp parameters/parameters.prod.json.example parameters/parameters.prod.json
 Update the parameters:
 - `DBPassword`: A strong password for PostgreSQL.
 - `BetterAuthSecret`: A secure random 32+ character key.
-- `SolutionStackName`: Matching your target AWS region (defaults to `64bit Amazon Linux 2023 v4.14.1 running Docker`).
+- `SolutionStackName`: Matching your target AWS region (defaults to `64bit Amazon Linux 2023 v4.14.3 running Docker`).
 
 ### 3. Deploy the Stack
 

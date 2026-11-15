@@ -37,7 +37,7 @@
   },
   {
     "ParameterKey": "SolutionStackName",
-    "ParameterValue": "64bit Amazon Linux 2023 v4.14.1 running Docker"
+    "ParameterValue": "64bit Amazon Linux 2023 v4.14.3 running Docker"
   },
   {
     "ParameterKey": "KeyName",
