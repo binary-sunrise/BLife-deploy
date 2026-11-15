@@ -3,7 +3,7 @@ Description: >
   B-Life - Complete Minimal, Cost-Effective AWS Infrastructure.
   Provisions S3 Frontend, CloudFront CDN with /api Reverse Proxy, Single-Instance
   Docker Backend (AWS Elastic Beanstalk), S3 Media Storage, Managed Free-Tier RDS
-  PostgreSQL Database, and Least-Privilege IAM Roles.
+  PostgreSQL Database, Least-Privilege IAM Roles, and Dedicated Deployment IAM Users.
   Zero load balancer overhead (~$0 to <$5/month, Free-Tier eligible).
 
 Metadata:
@@ -33,6 +33,13 @@ Metadata:
           default: "Application Security"
         Parameters:
           - BetterAuthSecret
+      - Label:
+          default: "IAM Users & CI/CD Credentials"
+        Parameters:
+          - CreateDeployerUser
+          - DeployerUserName
+          - CreateGitHubOIDC
+          - CreateGitHubDeployerRole
 
 Parameters:
   ProjectName:
@@ -130,9 +137,42 @@ Parameters:
     Default: "blife_prod_auth_secret_kfri_2026_secure_key_32chars!"
     Description: "32+ character authentication secret key"
 
+  # --- IAM Users & CI/CD Credentials ---
+  CreateDeployerUser:
+    Type: String
+    Default: "true"
+    AllowedValues:
+      - "true"
+      - "false"
+    Description: "Whether to create a dedicated IAM User with AdministratorAccess and API Access Keys for CI/CD and deployment scripts."
+
+  DeployerUserName:
+    Type: String
+    Default: "blife-deployer"
+    Description: "Username for the dedicated deployment IAM User."
+
+  CreateGitHubOIDC:
+    Type: String
+    Default: "true"
+    AllowedValues:
+      - "true"
+      - "false"
+    Description: "Whether to register the GitHub Actions OIDC Identity Provider in this account (set to false if already registered)."
+
+  CreateGitHubDeployerRole:
+    Type: String
+    Default: "true"
+    AllowedValues:
+      - "true"
+      - "false"
+    Description: "Whether to create the github-actions-deployer IAM Role for GitHub Actions OIDC federation."
+
 Conditions:
   HasKeyName: !Not [!Equals [!Ref KeyName, ""]]
   IsDBPublic: !Equals [!Ref DBPubliclyAccessible, "true"]
+  ShouldCreateDeployerUser: !Equals [!Ref CreateDeployerUser, "true"]
+  ShouldCreateGitHubOIDC: !Equals [!Ref CreateGitHubOIDC, "true"]
+  ShouldCreateGitHubRole: !Equals [!Ref CreateGitHubDeployerRole, "true"]
 
 Resources:
   # ============================================================================
@@ -543,10 +583,50 @@ Resources:
                 AWS:SourceArn: !Sub "arn:aws:cloudfront::${AWS::AccountId}:distribution/${CloudFrontDistribution}"
 
   # ============================================================================
-  # 9. GitHub Actions Deployer IAM Role (Administrator Access)
+  # 9. GitHub Actions OIDC Identity Provider (for Keyless CI/CD Role)
+  # ============================================================================
+  GitHubOIDCProvider:
+    Type: AWS::IAM::OIDCProvider
+    Condition: ShouldCreateGitHubOIDC
+    Properties:
+      Url: https://token.actions.githubusercontent.com
+      ClientIdList:
+        - sts.amazonaws.com
+      ThumbprintList:
+        - 6938fd4d98bab03faadb97b34396831e3780aea1
+        - 1c5877990d5f7a40f112706e88464ce003ed5b82
+
+  # ============================================================================
+  # 10. Dedicated Deployment IAM User & API Access Key
+  # ============================================================================
+  DeployerUser:
+    Type: AWS::IAM::User
+    Condition: ShouldCreateDeployerUser
+    Properties:
+      UserName: !Ref DeployerUserName
+      Path: /
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AdministratorAccess
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref EnvironmentName
+        - Key: Component
+          Value: CICD
+
+  DeployerUserAccessKey:
+    Type: AWS::IAM::AccessKey
+    Condition: ShouldCreateDeployerUser
+    Properties:
+      UserName: !Ref DeployerUser
+
+  # ============================================================================
+  # 11. GitHub Actions Deployer IAM Role (Administrator Access via OIDC / STS)
   # ============================================================================
   GitHubActionsDeployerRole:
     Type: AWS::IAM::Role
+    Condition: ShouldCreateGitHubRole
     Properties:
       RoleName: "github-actions-deployer"
       Description: "IAM role with AdministratorAccess for GitHub Actions CI/CD workflows and deployment automation"
@@ -559,7 +639,10 @@ Resources:
             Action: sts:AssumeRole
           - Effect: Allow
             Principal:
-              Federated: !Sub "arn:aws:iam::${AWS::AccountId}:oidc-provider/token.actions.githubusercontent.com"
+              Federated: !If
+                - ShouldCreateGitHubOIDC
+                - !Ref GitHubOIDCProvider
+                - !Sub "arn:aws:iam::${AWS::AccountId}:oidc-provider/token.actions.githubusercontent.com"
             Action: sts:AssumeRoleWithWebIdentity
             Condition:
               StringEquals:
@@ -607,6 +690,22 @@ Outputs:
     Description: "SQLAlchemy asyncpg Connection String for Backend & Migrations (Replace <password> with your DBPassword)"
     Value: !Sub "postgresql+asyncpg://${DBUsername}:<password>@${DatabaseInstance.Endpoint.Address}:${DatabaseInstance.Endpoint.Port}/blife_db"
 
+  DeployerUserNameOutput:
+    Description: "IAM Deployer Username created for deployment & CI/CD"
+    Value: !If [ShouldCreateDeployerUser, !Ref DeployerUser, "Not Created"]
+
+  DeployerUserArn:
+    Description: "IAM Deployer User ARN"
+    Value: !If [ShouldCreateDeployerUser, !GetAtt DeployerUser.Arn, "Not Created"]
+
+  DeployerAccessKeyId:
+    Description: "AWS Access Key ID for deployment (Set as AWS_ACCESS_KEY_ID in GitHub Secrets or local CLI)"
+    Value: !If [ShouldCreateDeployerUser, !Ref DeployerUserAccessKey, "Not Created"]
+
+  DeployerSecretAccessKey:
+    Description: "AWS Secret Access Key for deployment (Set as AWS_SECRET_ACCESS_KEY in GitHub Secrets or local CLI)"
+    Value: !If [ShouldCreateDeployerUser, !GetAtt DeployerUserAccessKey.SecretAccessKey, "Not Created"]
+
   GitHubActionsDeployerRoleArn:
     Description: "IAM Role ARN for github-actions-deployer with AdministratorAccess"
-    Value: !GetAtt GitHubActionsDeployerRole.Arn
+    Value: !If [ShouldCreateGitHubRole, !GetAtt GitHubActionsDeployerRole.Arn, "Not Created"]

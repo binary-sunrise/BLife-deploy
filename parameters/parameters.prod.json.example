@@ -46,6 +46,22 @@
   {
     "ParameterKey": "BetterAuthSecret",
     "ParameterValue": "REPLACE_WITH_A_SECURE_RANDOM_32_CHAR_SECRET_KEY"
+  },
+  {
+    "ParameterKey": "CreateDeployerUser",
+    "ParameterValue": "true"
+  },
+  {
+    "ParameterKey": "DeployerUserName",
+    "ParameterValue": "blife-deployer"
+  },
+  {
+    "ParameterKey": "CreateGitHubOIDC",
+    "ParameterValue": "true"
+  },
+  {
+    "ParameterKey": "CreateGitHubDeployerRole",
+    "ParameterValue": "true"
   }
 ]
 

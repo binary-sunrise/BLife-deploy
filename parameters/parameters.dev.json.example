@@ -46,6 +46,22 @@
   {
     "ParameterKey": "BetterAuthSecret",
     "ParameterValue": "dev_insecure_secret_only_for_local_dev_testing_32"
+  },
+  {
+    "ParameterKey": "CreateDeployerUser",
+    "ParameterValue": "true"
+  },
+  {
+    "ParameterKey": "DeployerUserName",
+    "ParameterValue": "blife-deployer-dev"
+  },
+  {
+    "ParameterKey": "CreateGitHubOIDC",
+    "ParameterValue": "true"
+  },
+  {
+    "ParameterKey": "CreateGitHubDeployerRole",
+    "ParameterValue": "true"
   }
 ]
 

@@ -89,6 +89,10 @@ The template provisions all required AWS resources in an atomic stack:
 | `BackendEnvironment` | AWS Elastic Beanstalk | Single-instance running Docker on Amazon Linux 2023. |
 | `CloudFrontDistribution` | Amazon CloudFront | Global CDN proxying `/*` to S3 and `/api/*`, `/health`, `/docs` to Beanstalk. |
 | `FrontendBucketPolicy` | Amazon S3 | Grants CloudFront distribution access via OAC. |
+| `GitHubOIDCProvider` | AWS IAM | OIDC Identity Provider for secure GitHub Actions workflows. |
+| `DeployerUser` | AWS IAM | Dedicated deployment user with AdministratorAccess for CI/CD and CLI scripts. |
+| `DeployerUserAccessKey` | AWS IAM | Programmatic API Access Key ID and Secret for deployment credentials. |
+| `GitHubActionsDeployerRole` | AWS IAM | IAM Role for GitHub Actions OIDC web identity federation. |
 
 ---
 
@@ -96,8 +100,8 @@ The template provisions all required AWS resources in an atomic stack:
 
 ### 1. Prerequisites
 - [AWS CLI v2](https://aws.amazon.com/cli/) installed and authenticated (`aws configure`).
-- Target region configured (recommended: `ap-south-1` Sydney).
-- Appropriate IAM permissions to provision S3, CloudFront, RDS, Beanstalk, and IAM roles (`CAPABILITY_NAMED_IAM`).
+- Target region configured (recommended: `ap-south-1` Mumbai).
+- Appropriate IAM permissions to provision S3, CloudFront, RDS, Beanstalk, and IAM users/roles (`CAPABILITY_NAMED_IAM`).
 
 ### 2. Configure Parameters
 Copy the example parameter file and edit secrets:
@@ -145,6 +149,12 @@ aws cloudformation describe-stacks \
   --query "Stacks[0].Outputs[*].[OutputKey, OutputValue]" \
   --output table
 ```
+
+Key outputs include:
+- `DeployerAccessKeyId` & `DeployerSecretAccessKey`: Add these to GitHub Repository Secrets (`AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`) for automated CI/CD!
+- `WebsiteURL`: Public HTTPS application URL (CloudFront)
+- `BackendEndpointURL`: Elastic Beanstalk direct endpoint
+- `DatabaseConnectionString`: PostgreSQL connection string (asyncpg)
 
 ---
 
